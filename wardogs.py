@@ -3,12 +3,14 @@
 
 import math
 import re
+import socket
 import sys
 import tkinter as tk
 from pathlib import Path
 
 COORD = re.compile(r"x\s*(-?\d+(?:\.\d+)?)\s*,?\s*y\s*(-?\d+(?:\.\d+)?)", re.I)
 UNITS_TO_METERS = 100
+LOCK_PORT = 49731  # ponytail: single instance via a bound port, no lockfile to clean up
 POS_FILE = Path(__file__).with_name(".window-pos")
 
 BG = "#12160f"
@@ -115,6 +117,17 @@ class App:
         self.root.destroy()
 
 
+def claim_single_instance():
+    """Hold a local port for the process lifetime. False if one is already running."""
+    lock = socket.socket()
+    try:
+        lock.bind(("127.0.0.1", LOCK_PORT))
+    except OSError:
+        return False
+    globals()["_lock"] = lock
+    return True
+
+
 def selftest():
     assert parse("x98.43, y110.38") == (98.43, 110.38)
     assert parse("TEAM x94.53, y109.03") == (94.53, 109.03)
@@ -132,6 +145,8 @@ def selftest():
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         selftest()
+    elif not claim_single_instance():
+        sys.exit()
     else:
         root = tk.Tk()
         App(root)
