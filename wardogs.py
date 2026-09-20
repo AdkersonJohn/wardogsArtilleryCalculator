@@ -4,7 +4,6 @@
 import math
 import re
 import socket
-import subprocess
 import sys
 import tkinter as tk
 from pathlib import Path
@@ -12,9 +11,6 @@ from pathlib import Path
 COORD = re.compile(r"x\s*(-?\d+(?:\.\d+)?)\s*,?\s*y\s*(-?\d+(?:\.\d+)?)", re.I)
 UNITS_TO_METERS = 100
 LOCK_PORT = 49731  # ponytail: single instance via a bound port, no lockfile to clean up
-GAME_PROC = "WardogsClient-Win64-Shipping.exe"
-WATCH_EVERY_MS = 5000
-NO_WINDOW = 0x08000000  # keeps tasklist from flashing a console every poll
 POS_FILE = Path(__file__).with_name(".window-pos")
 
 BG = "#12160f"
@@ -34,20 +30,6 @@ def distance(a, b):
     return math.hypot(a[0] - b[0], a[1] - b[1]) * UNITS_TO_METERS
 
 
-def matched(tasklist_csv):
-    """A hit is a CSV row; a miss is tasklist's plain-text INFO line. Never compare
-    against the image name -- tasklist truncates it to 25 chars in the output."""
-    return tasklist_csv.lstrip().startswith('"')
-
-
-def proc_running(name):
-    out = subprocess.run(
-        ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH", "/FO", "CSV"],
-        capture_output=True, text=True, creationflags=NO_WINDOW,
-    ).stdout
-    return matched(out)
-
-
 def weapon(meters):
     if meters <= 700:
         return "MORTAR", FG
@@ -59,12 +41,11 @@ def weapon(meters):
 
 
 class App:
-    def __init__(self, root, watch=False):
+    def __init__(self, root):
         self.root = root
         self.self_pos = None
         self.target = None
         self.last_clip = None
-        self.visible = not watch
 
         root.title("War Dogs Range")
         root.configure(bg=BG)
@@ -86,21 +67,6 @@ class App:
         ).pack(pady=(6, 0))
 
         self.poll()
-        if watch:
-            root.withdraw()
-            self.watch()
-
-    def watch(self):
-        """Show the window only while the game is running."""
-        running = proc_running(GAME_PROC)
-        if running and not self.visible:
-            self.visible = True
-            self.root.deiconify()
-        elif not running and self.visible:
-            self.visible = False
-            self.clear_self()
-            self.root.withdraw()
-        self.root.after(WATCH_EVERY_MS, self.watch)
 
     def _row(self, name, value):
         line = tk.Frame(self.root, bg=BG)
@@ -173,10 +139,6 @@ def selftest():
     assert weapon(412)[0] == "MORTAR"
     assert weapon(1500)[0] == "ARTILLERY"
     assert weapon(3000)[0] == "OUT OF RANGE"
-    assert matched('"WardogsClient-Win64-Shipp","18376","Console","1","7,057,036 K"')
-    assert not matched("INFO: No tasks are running which match the specified criteria.")
-    assert proc_running("explorer.exe")
-    assert not proc_running("definitely-not-a-real-process.exe")
     print("ok")
 
 
@@ -187,5 +149,5 @@ if __name__ == "__main__":
         sys.exit()
     else:
         root = tk.Tk()
-        App(root, watch="--watch" in sys.argv)
+        App(root)
         root.mainloop()
