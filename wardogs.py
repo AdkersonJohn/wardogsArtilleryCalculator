@@ -34,12 +34,18 @@ def distance(a, b):
     return math.hypot(a[0] - b[0], a[1] - b[1]) * UNITS_TO_METERS
 
 
+def matched(tasklist_csv):
+    """A hit is a CSV row; a miss is tasklist's plain-text INFO line. Never compare
+    against the image name -- tasklist truncates it to 25 chars in the output."""
+    return tasklist_csv.lstrip().startswith('"')
+
+
 def proc_running(name):
     out = subprocess.run(
-        ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"],
+        ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH", "/FO", "CSV"],
         capture_output=True, text=True, creationflags=NO_WINDOW,
     ).stdout
-    return name.lower() in out.lower()
+    return matched(out)
 
 
 def weapon(meters):
@@ -167,6 +173,8 @@ def selftest():
     assert weapon(412)[0] == "MORTAR"
     assert weapon(1500)[0] == "ARTILLERY"
     assert weapon(3000)[0] == "OUT OF RANGE"
+    assert matched('"WardogsClient-Win64-Shipp","18376","Console","1","7,057,036 K"')
+    assert not matched("INFO: No tasks are running which match the specified criteria.")
     assert proc_running("explorer.exe")
     assert not proc_running("definitely-not-a-real-process.exe")
     print("ok")
